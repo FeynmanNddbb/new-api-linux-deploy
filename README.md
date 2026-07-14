@@ -14,8 +14,7 @@
 </p>
 
 <p>
-  <a href="#方式一一键脚本安装">一键安装</a> |
-  <a href="#方式二手动安装教程">手动教程</a> |
+  <a href="#手动安装教程">手动教程</a> |
   <a href="#配置域名和-https">域名 HTTPS</a> |
   <a href="#常用管理命令">管理命令</a>
 </p>
@@ -45,57 +44,9 @@
 
 建议使用具有 `sudo` 权限的普通用户或 `root` 用户执行安装。
 
-## 方式一：一键脚本安装
+## 手动安装教程
 
-一键脚本会提示输入域名，并自动完成软件安装、New API 部署、日志轮转、Caddy HTTPS、防火墙规则和开机自启配置。
-
-克隆本仓库并执行安装脚本：
-
-```bash
-git clone https://github.com/FeynmanNddbb/new-api-linux-deploy.git
-cd new-api-linux-deploy
-chmod +x install.sh
-sudo ./install.sh
-```
-
-根据提示输入域名：
-
-```text
-Enter the domain for New API, for example api.example.com:
-```
-
-也可以直接传入域名：
-
-```bash
-sudo bash install.sh api.example.com
-```
-
-也可以直接下载 `install.sh`：
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/FeynmanNddbb/new-api-linux-deploy/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
-```
-
-脚本默认安装到：
-
-```text
-/opt/new-api
-```
-
-安装完成后访问：
-
-```text
-https://你的域名
-```
-
-> [!NOTE]
-> `install.sh` 只需要执行一次。服务器重启后由 Docker、Caddy 和 `new-api-compose.service` 自动恢复站点，不会重复安装软件。
-
-## 方式二：手动安装教程
-
-以下内容保留完整的手动部署过程。无需使用 `install.sh`，按顺序执行即可完成建站。
+按顺序执行以下步骤即可完成建站。
 
 ### 1. 安装前置软件
 
@@ -394,13 +345,6 @@ cd new-api
 git pull --ff-only
 sudo docker compose pull
 sudo docker compose up -d --remove-orphans
-```
-
-如果使用一键脚本，项目目录为 `/opt/new-api`：
-
-```bash
-cd /opt/new-api
-sudo docker compose ps
 ```
 
 > [!CAUTION]
