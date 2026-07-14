@@ -48,6 +48,9 @@
 
 按顺序执行以下步骤即可完成建站。
 
+> [!TIP]
+> 每个代码块都可以整段复制执行，不需要逐行输入；必须连续执行的普通命令已使用 `&&` 合并为单行。
+
 ### 1. 安装前置软件
 
 复制并执行下面的完整命令。脚本会读取 `/etc/os-release`，自动选择 APT、DNF 或 YUM 安装方式。
@@ -74,10 +77,63 @@ OS_ID="${ID,,}"
 
 echo "检测到系统：${PRETTY_NAME:-$OS_ID}"
 
+clear_stale_docker_proxy() {
+  local env_proxy json_proxy proxy port tmp
+
+  env_proxy="$(run_root systemctl show docker --property=Environment --value 2>/dev/null \
+    | grep -oE 'https?://(127\.0\.0\.1|localhost):[0-9]+' \
+    | head -n 1 || true)"
+  json_proxy=""
+
+  if [ -f /etc/docker/daemon.json ]; then
+    json_proxy="$(run_root jq -r '.proxies["https-proxy"] // .proxies["http-proxy"] // empty' \
+      /etc/docker/daemon.json 2>/dev/null || true)"
+  fi
+
+  proxy="${env_proxy:-$json_proxy}"
+
+  case "$proxy" in
+    http://127.0.0.1:*|https://127.0.0.1:*|http://localhost:*|https://localhost:*)
+      port="${proxy##*:}"
+      port="${port%%/*}"
+
+      if command -v ss >/dev/null 2>&1 \
+        && ss -lntH | awk '{print $4}' | grep -Eq "[:.]${port}$"; then
+        echo "检测到可用的本机 Docker 代理：${proxy}，保留当前配置。"
+        return
+      fi
+
+      echo "检测到失效的本机 Docker 代理：${proxy}，正在清除。"
+      run_root mkdir -p /etc/systemd/system/docker.service.d
+      run_root tee /etc/systemd/system/docker.service.d/99-no-proxy.conf >/dev/null <<'PROXYEOF'
+[Service]
+Environment="HTTP_PROXY="
+Environment="HTTPS_PROXY="
+Environment="ALL_PROXY="
+Environment="http_proxy="
+Environment="https_proxy="
+Environment="all_proxy="
+PROXYEOF
+
+      if [ -f /etc/docker/daemon.json ]; then
+        run_root cp /etc/docker/daemon.json "/etc/docker/daemon.json.bak.$(date +%Y%m%d%H%M%S)"
+        tmp="$(mktemp)"
+        run_root jq 'if (((.proxies? // {}) | tostring) | test("127\\.0\\.0\\.1|localhost")) then del(.proxies) else . end' \
+          /etc/docker/daemon.json > "$tmp"
+        run_root install -m 0644 "$tmp" /etc/docker/daemon.json
+        rm -f "$tmp"
+      fi
+
+      run_root systemctl daemon-reload
+      run_root systemctl restart docker
+      ;;
+  esac
+}
+
 case "$OS_ID" in
   debian|ubuntu)
     run_root apt-get update
-    run_root apt-get install -y ca-certificates curl gnupg git logrotate
+    run_root apt-get install -y ca-certificates curl gnupg git jq logrotate
 
     run_root install -m 0755 -d /etc/apt/keyrings
     curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" \
@@ -113,7 +169,7 @@ case "$OS_ID" in
       PKG=yum
     fi
 
-    run_root "$PKG" install -y ca-certificates curl git logrotate
+    run_root "$PKG" install -y ca-certificates curl git jq logrotate
 
     case "$OS_ID" in
       fedora) DOCKER_DIST=fedora ;;
@@ -141,6 +197,7 @@ case "$OS_ID" in
 esac
 
 run_root systemctl enable --now docker
+clear_stale_docker_proxy
 run_root systemctl enable --now caddy
 
 echo
@@ -159,13 +216,21 @@ INSTALL
 | Docker Compose v2 | 管理多个容器服务 |
 | Git | 下载和更新 New API |
 | Caddy | 域名反向代理和自动 HTTPS |
+| jq | 安全修改 Docker JSON 配置 |
 | Logrotate | 轮转和压缩 New API 应用日志 |
+
+### 现有服务器一键修复失效代理
+
+如果已经出现 `proxyconnect tcp: dial tcp 127.0.0.1:7890: connect: connection refused`，一次性复制执行以下单行命令：
+
+```bash
+sudo bash -c 'set -e; command -v jq >/dev/null 2>&1 || { if command -v apt-get >/dev/null 2>&1; then apt-get update -qq && apt-get install -y -qq jq; elif command -v dnf >/dev/null 2>&1; then dnf install -y jq; else yum install -y jq; fi; }; mkdir -p /etc/systemd/system/docker.service.d; printf "%s\n" "[Service]" "Environment=\"HTTP_PROXY=\"" "Environment=\"HTTPS_PROXY=\"" "Environment=\"ALL_PROXY=\"" "Environment=\"http_proxy=\"" "Environment=\"https_proxy=\"" "Environment=\"all_proxy=\"" > /etc/systemd/system/docker.service.d/99-no-proxy.conf; if [ -f /etc/docker/daemon.json ] && grep -qiE "127\.0\.0\.1|localhost" /etc/docker/daemon.json; then cp /etc/docker/daemon.json "/etc/docker/daemon.json.bak.$(date +%Y%m%d%H%M%S)"; tmp=$(mktemp); jq "del(.proxies)" /etc/docker/daemon.json > "$tmp"; install -m 0644 "$tmp" /etc/docker/daemon.json; rm -f "$tmp"; fi; systemctl daemon-reload && systemctl restart docker; systemctl show docker --property=Environment; docker info | grep -i proxy || true'
+```
 
 ### 2. 下载 New API
 
 ```bash
-git clone https://github.com/QuantumNous/new-api.git
-cd new-api
+git clone https://github.com/QuantumNous/new-api.git && cd new-api
 ```
 
 ### 3. 配置日志轮转
@@ -216,15 +281,7 @@ EOF
 ### 4. 拉取并启动 New API
 
 ```bash
-sudo docker compose config >/dev/null
-sudo docker compose pull
-sudo docker compose up -d
-```
-
-查看状态：
-
-```bash
-sudo docker compose ps
+sudo docker compose config >/dev/null && sudo docker compose pull && sudo docker compose up -d && sudo docker compose ps
 ```
 
 查看实时日志：
@@ -265,10 +322,7 @@ EOF
 检查并加载配置：
 
 ```bash
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl enable --now caddy
-sudo systemctl reload caddy
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile && sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl enable --now caddy && sudo systemctl reload caddy
 ```
 
 等待 DNS 生效后访问：
@@ -309,16 +363,13 @@ TimeoutStopSec=120
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now new-api-compose.service
+sudo systemctl daemon-reload && sudo systemctl enable --now new-api-compose.service
 ```
 
 查看自启服务：
 
 ```bash
-sudo systemctl status docker --no-pager
-sudo systemctl status caddy --no-pager
-sudo systemctl status new-api-compose --no-pager
+sudo systemctl status docker --no-pager && sudo systemctl status caddy --no-pager && sudo systemctl status new-api-compose --no-pager
 ```
 
 ## 常用管理命令
@@ -341,10 +392,7 @@ cd new-api
 更新 New API：
 
 ```bash
-cd new-api
-git pull --ff-only
-sudo docker compose pull
-sudo docker compose up -d --remove-orphans
+cd new-api && git pull --ff-only && sudo docker compose pull && sudo docker compose up -d --remove-orphans
 ```
 
 > [!CAUTION]
@@ -366,15 +414,13 @@ sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
 }
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl restart docker
+sudo systemctl daemon-reload && sudo systemctl restart docker
 ```
 
 重新拉取镜像：
 
 ```bash
-sudo docker compose pull
-sudo docker compose up -d
+sudo docker compose pull && sudo docker compose up -d
 ```
 
 > [!NOTE]
