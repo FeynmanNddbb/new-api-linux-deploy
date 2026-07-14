@@ -437,6 +437,16 @@ sudo docker compose pull && sudo docker compose up -d
 
 使用域名和 Caddy 后，可以在云安全组中关闭公网 `3000` 端口，只保留 `80` 和 `443`。
 
+## 站点与交流群
+
+站点自用：[cc.midlight.top](https://cc.midlight.top)
+
+建站以及上游对接交流群：
+
+<p align="center">
+  <img src="assets/qq-group.png" alt="建站以及上游对接交流群二维码" width="360">
+</p>
+
 ## 许可证
 
 本仓库原创的部署脚本和文档使用 [PolyForm Noncommercial License 1.0.0](LICENSE)。允许非商业用途；任何商业使用均须事先获得作者的书面授权。商业授权请通过 GitHub Issues 联系。
