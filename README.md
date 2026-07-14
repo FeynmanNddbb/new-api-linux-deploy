@@ -14,7 +14,7 @@
 </p>
 
 <p>
-  <a href="#手动安装教程">手动教程</a> |
+  <a href="#精简安装教程">手动教程</a> |
   <a href="#配置域名和-https">域名 HTTPS</a> |
   <a href="#常用管理命令">管理命令</a>
 </p>
@@ -233,7 +233,7 @@ sudo bash -c 'set -e; command -v jq >/dev/null 2>&1 || { if command -v apt-get >
 git clone https://github.com/QuantumNous/new-api.git && cd new-api
 ```
 
-### 3. 配置日志轮转
+### 3. 配置日志轮转（防止日志堆叠撑爆服务器）
 
 创建 Compose 覆盖配置，为 New API、PostgreSQL 和 Redis 设置容器日志轮转：
 
@@ -398,7 +398,7 @@ cd new-api && git pull --ff-only && sudo docker compose pull && sudo docker comp
 > [!CAUTION]
 > 不要随意执行 `docker compose down -v`。参数 `-v` 会删除 PostgreSQL 数据卷。
 
-## 可选：配置 Docker 镜像加速
+## 可选：配置 Docker 镜像加速（境外服务器不需要）
 
 如果拉取镜像超时，可以配置镜像地址：
 
