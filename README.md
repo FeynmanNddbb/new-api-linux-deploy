@@ -439,7 +439,7 @@ sudo docker compose pull && sudo docker compose up -d
 
 ## 站点与交流群
 
-站点自用：[cc.midlight.top](https://cc.midlight.top)
+站点自用：[icodeapi.com](https://icodeapi.com)
 
 建站以及上游对接交流群：
 
